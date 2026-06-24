@@ -90,9 +90,9 @@ def build_ffmpeg_command(input_path, output_path, options):
 
     # Build scale filter
     if height == -1 or height == 0:
-        scale = f"scale={width}:-1:flags=lanczos"
+        scale = f"format=rgb24,scale={width}:-1:flags=lanczos"
     else:
-        scale = f"scale={width}:{height}:flags=lanczos:force_original_aspect_ratio=decrease"
+        scale = f"format=rgb24,scale={width}:{height}:flags=lanczos:force_original_aspect_ratio=decrease"
 
     palette_path = output_path.replace('.gif', '_palette.png')
 
