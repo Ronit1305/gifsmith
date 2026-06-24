@@ -129,7 +129,7 @@ def build_ffmpeg_command(input_path, output_path, options):
     # Pass 1: Generate optimized palette
     # stats_mode=diff gives best quality for motion
     pass1 = (
-        ['ffmpeg', '-y', '-hwaccel', 'auto'] +
+        ['ffmpeg', '-y'] +
         extra_input +
         ['-i', input_path,
          '-vf', f'fps={fps},{scale},format=rgb24,palettegen=stats_mode=diff:max_colors=256',
@@ -141,7 +141,7 @@ def build_ffmpeg_command(input_path, output_path, options):
     # bayer_scale=3 is the sweet spot for quality vs banding
     # diff_mode=rectangle: only redraw changed pixels (smaller GIF)
     pass2 = (
-        ['ffmpeg', '-y', '-hwaccel', 'auto'] +
+        ['ffmpeg', '-y'] +
         extra_input +
         ['-i', input_path,
          '-i', palette_path,
