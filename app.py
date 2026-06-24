@@ -121,7 +121,7 @@ def build_ffmpeg_command(input_path, output_path, options):
         ['ffmpeg', '-y'] +
         extra_input +
         ['-i', input_path,
-         '-vf', f'fps={fps},{scale},format=rgb24,palettegen=stats_mode=diff:max_colors=256',
+         '-vf', f'fps={fps},format=rgb24,{scale},palettegen=stats_mode=diff:max_colors=256',
          '-frames:v', '1',
          palette_path]
     )
@@ -131,7 +131,7 @@ def build_ffmpeg_command(input_path, output_path, options):
         extra_input +
         ['-i', input_path,
          '-i', palette_path,
-         '-lavfi', f'fps={fps},{scale},format=rgb24 [x]; [x][1:v] paletteuse=dither=bayer:bayer_scale=3:diff_mode=rectangle',
+         '-lavfi', f'fps={fps},format=rgb24,{scale} [x]; [x][1:v] paletteuse=dither=bayer:bayer_scale=3:diff_mode=rectangle',
          output_path]
     )
 

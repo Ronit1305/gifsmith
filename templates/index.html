@@ -606,6 +606,10 @@
       <a class="download-btn" id="download-btn" href="#" download="converted.gif">
         ⬇ Download GIF
       </a>
+      <button class="download-btn" id="mp4-btn" onclick="exportMp4()"
+              style="margin-top:0.5rem;background:rgba(255,139,0,0.1);border-color:rgba(255,139,0,0.3);color:#ffbe0b;display:none;">
+        ⬇ Export as MP4 (silent loop)
+      </button>
     </div>
   </div>
 </main>
@@ -616,6 +620,7 @@
 
 <script>
   let currentJobId = null;
+  let mp4JobId = null;
   let pollTimer = null;
   let selectedFile = null;
   let activePreset = null;
@@ -778,9 +783,68 @@
     };
 
     document.getElementById('btn-convert').disabled = false;
+    document.getElementById('mp4-btn').style.display = 'block';
     flash('🎉 GIF ready!');
   }
+  
+  async function exportMp4() {
+    if (!selectedFile) return;
+    const btn = document.getElementById('mp4-btn');
+    btn.textContent = '⏳ Converting to MP4…';
+    btn.style.opacity = '0.6';
+    btn.onclick = null;
 
+    const fd = new FormData();
+    fd.append('file', selectedFile);
+    fd.append('fps',        document.getElementById('fps').value);
+    fd.append('width',      document.getElementById('width').value);
+    fd.append('height',     document.getElementById('height').value);
+    fd.append('start_time', document.getElementById('start-time').value || '0');
+    const endTime = document.getElementById('end-time').value;
+    if (endTime) fd.append('end_time', endTime);
+
+    try {
+      const res = await fetch('/api/convert-mp4', { method: 'POST', body: fd });
+      const data = await res.json();
+      if (!res.ok || data.error) throw new Error(data.error || 'Upload failed');
+      mp4JobId = data.job_id;
+      pollMp4Status();
+    } catch (err) {
+      btn.textContent = '⚠ MP4 failed: ' + err.message;
+      btn.style.opacity = '1';
+      btn.onclick = exportMp4;
+    }
+  }
+
+  function pollMp4Status() {
+    setTimeout(async () => {
+      try {
+        const res = await fetch(`/api/status/${mp4JobId}`);
+        const job = await res.json();
+        const btn = document.getElementById('mp4-btn');
+        if (job.status === 'done') {
+          btn.textContent = '⬇ Download MP4';
+          btn.style.opacity = '1';
+          btn.onclick = () => {
+            const a = document.createElement('a');
+            a.href = `/api/download-mp4/${mp4JobId}`;
+            a.download = 'reddit_clip.mp4';
+            a.click();
+          };
+          flash('🎬 MP4 ready!');
+        } else if (job.status === 'error') {
+          btn.textContent = '⚠ MP4 failed';
+          btn.style.opacity = '1';
+          btn.onclick = exportMp4;
+        } else {
+          btn.textContent = `⏳ Converting… ${job.progress || 0}%`;
+          pollMp4Status();
+        }
+      } catch (e) {
+        pollMp4Status();
+      }
+    }, 800);
+  }
   // ── Helpers ──────────────────────────────────────────
   function showProgress(show) {
     document.getElementById('progress-wrap').style.display = show ? 'block' : 'none';
