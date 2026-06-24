@@ -21,8 +21,32 @@ os.makedirs(OUTPUT_FOLDER, exist_ok=True)
 ALLOWED_EXTENSIONS = {'mp4', 'mov', 'avi', 'mkv', 'webm', 'flv', 'm4v', 'wmv', '3gp', 'ts'}
 
 # In-memory job tracking
+# Disk-backed job tracking (survives container restarts)
 jobs = {}
 jobs_lock = threading.Lock()
+JOBS_FILE = '/tmp/video2gif_jobs.json'
+
+def save_jobs():
+    try:
+        safe = {k: {ik: iv for ik, iv in v.items() if ik != 'output_path'} 
+                for k, v in jobs.items()}
+        # Save output_path separately
+        full = {k: dict(v) for k, v in jobs.items()}
+        with open(JOBS_FILE, 'w') as f:
+            json.dump(full, f)
+    except Exception:
+        pass
+
+def load_jobs():
+    try:
+        if os.path.exists(JOBS_FILE):
+            with open(JOBS_FILE, 'r') as f:
+                return json.load(f)
+    except Exception:
+        pass
+    return {}
+
+jobs = load_jobs()
 
 
 def allowed_file(filename):
@@ -168,6 +192,7 @@ def convert_job(job_id, input_path, output_path, options):
             jobs[job_id]['stage'] = 'Done!'
             jobs[job_id]['output_path'] = output_path
             jobs[job_id]['file_size'] = file_size
+            save_jobs()
 
     except Exception as e:
         with jobs_lock:
