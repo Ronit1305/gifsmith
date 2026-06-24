@@ -105,7 +105,10 @@ def build_ffmpeg_command(input_path, output_path, options):
     start_time = float(options.get('start_time', 0))
     end_time = options.get('end_time')
 
-    if height == -1 or height == 0:
+    # Properly handle -1 (auto) on either dimension
+    if width == -1 or width == 0:
+        scale = f"scale=-2:{height}:flags=lanczos"
+    elif height == -1 or height == 0:
         scale = f"scale={width}:-2:flags=lanczos"
     else:
         scale = f"scale={width}:{height}:flags=lanczos:force_original_aspect_ratio=decrease"
@@ -117,14 +120,15 @@ def build_ffmpeg_command(input_path, output_path, options):
         duration = float(end_time) - start_time
         extra_input += ['-t', str(duration)]
 
-    # Force software decode + sRGB conversion BEFORE any filter
-    vf_pass1 = f"format=yuv420p,fps={fps},{scale},format=rgb24,palettegen=stats_mode=diff:max_colors=256"
-    vf_pass2 = f"format=yuv420p,fps={fps},{scale},format=rgb24"
+    # setparams retags Apple HEVC color space as bt709 so palettegen
+    # doesn't fail with "not in sRGB" on iPhone .mov files
+    color_fix = "setparams=color_primaries=bt709:color_trc=bt709:colorspace=bt709"
+
+    vf_pass1 = f"fps={fps},{scale},{color_fix},format=rgb24,palettegen=stats_mode=diff:max_colors=256"
+    vf_pass2 = f"fps={fps},{scale},{color_fix},format=rgb24"
 
     pass1 = (
-        ['ffmpeg', '-y',
-         '-vcodec', 'hevc',  # force software hevc decoder
-         ] +
+        ['ffmpeg', '-y'] +
         extra_input +
         ['-i', input_path,
          '-vf', vf_pass1,
@@ -133,9 +137,7 @@ def build_ffmpeg_command(input_path, output_path, options):
     )
 
     pass2 = (
-        ['ffmpeg', '-y',
-         '-vcodec', 'hevc',
-         ] +
+        ['ffmpeg', '-y'] +
         extra_input +
         ['-i', input_path,
          '-i', palette_path,
@@ -153,7 +155,9 @@ def build_mp4_command(input_path, output_path, options):
     start_time = float(options.get('start_time', 0))
     end_time = options.get('end_time')
 
-    if height == -1 or height == 0:
+    if width == -1 or width == 0:
+        scale = f"scale=-2:{height}:flags=lanczos"
+    elif height == -1 or height == 0:
         scale = f"scale={width}:-2:flags=lanczos"
     else:
         scale = f"scale={width}:{height}:flags=lanczos:force_original_aspect_ratio=decrease"
@@ -232,7 +236,7 @@ def convert_job(job_id, input_path, output_path, options):
 
         result1 = subprocess.run(pass1, capture_output=True, text=True)
         if result1.returncode != 0:
-            raise RuntimeError(f"Palette generation failed: {result1.stderr[-500:]}")
+            raise RuntimeError(f"Palette generation failed: {result1.stderr[-2000:]}")
 
         with jobs_lock:
             jobs[job_id]['progress'] = 50
@@ -241,7 +245,7 @@ def convert_job(job_id, input_path, output_path, options):
 
         result2 = subprocess.run(pass2, capture_output=True, text=True)
         if result2.returncode != 0:
-            raise RuntimeError(f"GIF conversion failed: {result2.stderr[-500:]}")
+            raise RuntimeError(f"GIF conversion failed: {result2.stderr[-2000:]}")
 
         try:
             os.remove(palette_path)
@@ -288,7 +292,7 @@ def mp4_job(job_id, input_path, output_path, options):
         cmd = build_mp4_command(input_path, output_path, options)
         result = subprocess.run(cmd, capture_output=True, text=True)
         if result.returncode != 0:
-            raise RuntimeError(f"MP4 conversion failed: {result.stderr[-500:]}")
+            raise RuntimeError(f"MP4 conversion failed: {result.stderr[-2000:]}")
 
         file_size = os.path.getsize(output_path)
 
@@ -424,7 +428,6 @@ def status(job_id):
     with jobs_lock:
         job = jobs.get(job_id)
     if not job:
-        # Try reloading from disk in case of restart
         reloaded = load_jobs()
         job = reloaded.get(job_id)
         if job:
