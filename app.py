@@ -38,14 +38,14 @@ def cleanup_old_files():
             for f in os.listdir(folder):
                 fpath = os.path.join(folder, f)
                 try:
-                    if now - os.path.getmtime(fpath) > 1800:
+                    if now - os.path.getmtime(fpath) > 3600:
                         os.remove(fpath)
                 except Exception:
                     pass
         # Clean old jobs
         with jobs_lock:
             to_del = [jid for jid, j in jobs.items()
-                      if now - j.get('created_at', now) > 1800]
+                      if now - j.get('created_at', now) > 3600]
             for jid in to_del:
                 del jobs[jid]
 
@@ -105,10 +105,10 @@ def build_ffmpeg_command(input_path, output_path, options):
     # Pass 1: Generate optimized palette
     # stats_mode=diff gives best quality for motion
     pass1 = (
-        ['ffmpeg', '-y'] +
+        ['ffmpeg', '-y', '-hwaccel', 'auto'] +
         extra_input +
         ['-i', input_path,
-         '-vf', f'fps={fps},{scale},palettegen=stats_mode=diff:max_colors=256',
+         '-vf', f'fps={fps},{scale},format=rgb24,palettegen=stats_mode=diff:max_colors=256',
          '-frames:v', '1',
          palette_path]
     )
@@ -117,11 +117,11 @@ def build_ffmpeg_command(input_path, output_path, options):
     # bayer_scale=3 is the sweet spot for quality vs banding
     # diff_mode=rectangle: only redraw changed pixels (smaller GIF)
     pass2 = (
-        ['ffmpeg', '-y'] +
+        ['ffmpeg', '-y', '-hwaccel', 'auto'] +
         extra_input +
         ['-i', input_path,
          '-i', palette_path,
-         '-lavfi', f'fps={fps},{scale} [x]; [x][1:v] paletteuse=dither=bayer:bayer_scale=3:diff_mode=rectangle',
+         '-lavfi', f'fps={fps},{scale},format=rgb24 [x]; [x][1:v] paletteuse=dither=bayer:bayer_scale=3:diff_mode=rectangle',
          output_path]
     )
 
