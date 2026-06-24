@@ -117,21 +117,29 @@ def build_ffmpeg_command(input_path, output_path, options):
         duration = float(end_time) - start_time
         extra_input += ['-t', str(duration)]
 
+    # Force software decode + sRGB conversion BEFORE any filter
+    vf_pass1 = f"format=yuv420p,fps={fps},{scale},format=rgb24,palettegen=stats_mode=diff:max_colors=256"
+    vf_pass2 = f"format=yuv420p,fps={fps},{scale},format=rgb24"
+
     pass1 = (
-        ['ffmpeg', '-y'] +
+        ['ffmpeg', '-y',
+         '-vcodec', 'hevc',  # force software hevc decoder
+         ] +
         extra_input +
         ['-i', input_path,
-         '-vf', f'fps={fps},format=rgb24,{scale},palettegen=stats_mode=diff:max_colors=256',
+         '-vf', vf_pass1,
          '-frames:v', '1',
          palette_path]
     )
 
     pass2 = (
-        ['ffmpeg', '-y'] +
+        ['ffmpeg', '-y',
+         '-vcodec', 'hevc',
+         ] +
         extra_input +
         ['-i', input_path,
          '-i', palette_path,
-         '-lavfi', f'fps={fps},format=rgb24,{scale} [x]; [x][1:v] paletteuse=dither=bayer:bayer_scale=3:diff_mode=rectangle',
+         '-lavfi', f'{vf_pass2} [x]; [x][1:v] paletteuse=dither=bayer:bayer_scale=3:diff_mode=rectangle',
          output_path]
     )
 
