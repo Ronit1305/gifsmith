@@ -1,0 +1,10 @@
+[build]
+builder = "dockerfile"
+dockerfilePath = "Dockerfile"
+
+[deploy]
+restartPolicyType = "on_failure"
+restartPolicyMaxRetries = 3
+
+# Increase body size limit for video uploads (500MB)
+# Set via env var in Railway dashboard: MAX_UPLOAD_SIZE=524288000

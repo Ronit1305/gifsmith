@@ -1,0 +1,822 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>GIFsmith — Video to GIF Converter</title>
+<style>
+  /* ─── Design tokens ───────────────────────────────── */
+  :root {
+    --bg:       #0d0d0f;
+    --surface:  #17171a;
+    --border:   #2a2a30;
+    --accent:   #ff4d6d;
+    --accent2:  #ff8fa3;
+    --success:  #39d98a;
+    --warn:     #ffbe0b;
+    --text:     #e8e8ec;
+    --muted:    #6b6b78;
+    --code:     #b39ddb;
+    --radius:   10px;
+    --font-display: 'Space Grotesk', system-ui, sans-serif;
+    --font-mono:    'JetBrains Mono', 'Fira Code', monospace;
+  }
+
+  @import url('https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&family=JetBrains+Mono:wght@400;600&display=swap');
+
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+  body {
+    background: var(--bg);
+    color: var(--text);
+    font-family: var(--font-display);
+    min-height: 100vh;
+    overflow-x: hidden;
+  }
+
+  /* ─── Header ──────────────────────────────────────── */
+  header {
+    border-bottom: 1px solid var(--border);
+    padding: 0 2rem;
+    height: 56px;
+    display: flex;
+    align-items: center;
+    gap: 1rem;
+    background: var(--surface);
+    position: sticky;
+    top: 0;
+    z-index: 100;
+  }
+
+  .logo {
+    font-weight: 700;
+    font-size: 1.15rem;
+    letter-spacing: -0.03em;
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+  }
+
+  .logo .dot {
+    width: 8px; height: 8px;
+    background: var(--accent);
+    border-radius: 50%;
+    animation: pulse 2s ease-in-out infinite;
+  }
+
+  @keyframes pulse {
+    0%, 100% { opacity: 1; transform: scale(1); }
+    50% { opacity: 0.5; transform: scale(0.8); }
+  }
+
+  .logo-sub {
+    color: var(--muted);
+    font-size: 0.8rem;
+    font-weight: 400;
+    margin-left: auto;
+    font-family: var(--font-mono);
+  }
+
+  /* ─── Main layout ─────────────────────────────────── */
+  main {
+    max-width: 1000px;
+    margin: 0 auto;
+    padding: 2.5rem 1.5rem 4rem;
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 1.5rem;
+    align-items: start;
+  }
+
+  @media (max-width: 700px) {
+    main { grid-template-columns: 1fr; padding: 1.5rem 1rem 3rem; }
+  }
+
+  /* ─── Panel ───────────────────────────────────────── */
+  .panel {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    padding: 1.5rem;
+  }
+
+  .panel-title {
+    font-size: 0.7rem;
+    font-family: var(--font-mono);
+    color: var(--muted);
+    text-transform: uppercase;
+    letter-spacing: 0.12em;
+    margin-bottom: 1.2rem;
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+  }
+
+  .panel-title::after {
+    content: '';
+    flex: 1;
+    height: 1px;
+    background: var(--border);
+  }
+
+  /* ─── Drop zone ───────────────────────────────────── */
+  .drop-zone {
+    border: 2px dashed var(--border);
+    border-radius: var(--radius);
+    padding: 2.5rem 1rem;
+    text-align: center;
+    cursor: pointer;
+    transition: border-color 0.2s, background 0.2s;
+    position: relative;
+    overflow: hidden;
+  }
+
+  .drop-zone:hover, .drop-zone.drag-over {
+    border-color: var(--accent);
+    background: rgba(255,77,109,0.05);
+  }
+
+  .drop-zone input[type=file] {
+    position: absolute; inset: 0; opacity: 0; cursor: pointer; z-index: 2;
+  }
+
+  .drop-icon {
+    font-size: 2.5rem;
+    margin-bottom: 0.75rem;
+    display: block;
+    filter: grayscale(0.3);
+  }
+
+  .drop-label {
+    font-size: 0.95rem;
+    color: var(--text);
+    font-weight: 500;
+    margin-bottom: 0.35rem;
+  }
+
+  .drop-hint {
+    font-size: 0.78rem;
+    color: var(--muted);
+    font-family: var(--font-mono);
+  }
+
+  .file-info {
+    margin-top: 1rem;
+    background: rgba(57,217,138,0.07);
+    border: 1px solid rgba(57,217,138,0.2);
+    border-radius: 8px;
+    padding: 0.6rem 0.9rem;
+    font-size: 0.8rem;
+    color: var(--success);
+    font-family: var(--font-mono);
+    text-align: left;
+    display: none;
+  }
+
+  /* ─── Form controls ───────────────────────────────── */
+  .field {
+    margin-bottom: 1rem;
+  }
+
+  label {
+    display: block;
+    font-size: 0.78rem;
+    color: var(--muted);
+    font-family: var(--font-mono);
+    margin-bottom: 0.4rem;
+    letter-spacing: 0.05em;
+  }
+
+  .label-row {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+  }
+
+  .label-val {
+    color: var(--code);
+    font-weight: 600;
+  }
+
+  input[type=range] {
+    width: 100%;
+    height: 4px;
+    -webkit-appearance: none;
+    background: var(--border);
+    border-radius: 2px;
+    outline: none;
+    cursor: pointer;
+  }
+
+  input[type=range]::-webkit-slider-thumb {
+    -webkit-appearance: none;
+    width: 16px; height: 16px;
+    border-radius: 50%;
+    background: var(--accent);
+    cursor: pointer;
+    transition: transform 0.15s;
+    box-shadow: 0 0 0 3px rgba(255,77,109,0.2);
+  }
+
+  input[type=range]::-webkit-slider-thumb:hover { transform: scale(1.25); }
+
+  select, input[type=number], input[type=text] {
+    width: 100%;
+    background: var(--bg);
+    border: 1px solid var(--border);
+    border-radius: 7px;
+    color: var(--text);
+    padding: 0.5rem 0.75rem;
+    font-family: var(--font-mono);
+    font-size: 0.88rem;
+    outline: none;
+    transition: border-color 0.15s;
+  }
+
+  select:focus, input[type=number]:focus, input[type=text]:focus {
+    border-color: var(--accent);
+  }
+
+  .row2 {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 0.75rem;
+  }
+
+  /* ─── Preset button ───────────────────────────────── */
+  .preset-row {
+    display: flex;
+    gap: 0.5rem;
+    margin-bottom: 1.2rem;
+    flex-wrap: wrap;
+  }
+
+  .preset-btn {
+    flex: 1;
+    min-width: 120px;
+    padding: 0.55rem 0.75rem;
+    border-radius: 8px;
+    border: 1px solid var(--border);
+    background: var(--bg);
+    color: var(--muted);
+    cursor: pointer;
+    font-size: 0.78rem;
+    font-family: var(--font-mono);
+    transition: all 0.15s;
+    display: flex;
+    align-items: center;
+    gap: 0.4rem;
+    justify-content: center;
+    white-space: nowrap;
+  }
+
+  .preset-btn:hover {
+    border-color: var(--accent);
+    color: var(--accent);
+    background: rgba(255,77,109,0.06);
+  }
+
+  .preset-btn.active {
+    background: rgba(255,77,109,0.12);
+    border-color: var(--accent);
+    color: var(--accent);
+  }
+
+  .preset-btn .emoji { font-size: 1rem; }
+
+  /* ─── Reddit config button ────────────────────────── */
+  #btn-reddit {
+    background: linear-gradient(135deg, #ff4500 0%, #ff6534 100%);
+    border: none;
+    color: #fff;
+    font-weight: 600;
+    letter-spacing: 0.02em;
+  }
+
+  #btn-reddit:hover {
+    background: linear-gradient(135deg, #e03d00 0%, #e55a2e 100%);
+    color: #fff;
+    border: none;
+  }
+
+  #btn-reddit.active {
+    background: linear-gradient(135deg, #c03500 0%, #c85028 100%);
+    border: none;
+    color: #fff;
+  }
+
+  /* ─── Convert button ──────────────────────────────── */
+  #btn-convert {
+    width: 100%;
+    margin-top: 1.2rem;
+    padding: 0.85rem;
+    border-radius: var(--radius);
+    border: none;
+    background: var(--accent);
+    color: #fff;
+    font-family: var(--font-display);
+    font-size: 1rem;
+    font-weight: 600;
+    cursor: pointer;
+    letter-spacing: -0.01em;
+    transition: background 0.15s, transform 0.1s;
+    position: relative;
+    overflow: hidden;
+  }
+
+  #btn-convert:hover:not(:disabled) {
+    background: #e03050;
+    transform: translateY(-1px);
+  }
+
+  #btn-convert:disabled {
+    opacity: 0.45;
+    cursor: not-allowed;
+    transform: none;
+  }
+
+  /* ─── Progress ────────────────────────────────────── */
+  .progress-wrap {
+    display: none;
+    margin-top: 1.2rem;
+  }
+
+  .progress-track {
+    height: 5px;
+    background: var(--border);
+    border-radius: 3px;
+    overflow: hidden;
+    margin-bottom: 0.5rem;
+  }
+
+  .progress-bar {
+    height: 100%;
+    background: linear-gradient(90deg, var(--accent), var(--accent2));
+    border-radius: 3px;
+    transition: width 0.4s ease;
+    width: 0%;
+  }
+
+  .progress-label {
+    font-size: 0.75rem;
+    font-family: var(--font-mono);
+    color: var(--muted);
+  }
+
+  /* ─── Output panel ────────────────────────────────── */
+  #output-panel { display: none; }
+
+  .gif-preview {
+    width: 100%;
+    border-radius: 8px;
+    display: block;
+    image-rendering: auto;
+    background: repeating-conic-gradient(#1e1e24 0% 25%, #15151a 0% 50%) 0 0 / 16px 16px;
+  }
+
+  .meta-row {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-top: 0.75rem;
+    padding-top: 0.75rem;
+    border-top: 1px solid var(--border);
+    font-family: var(--font-mono);
+    font-size: 0.78rem;
+    color: var(--muted);
+  }
+
+  .meta-row .size-badge {
+    color: var(--success);
+    font-weight: 600;
+  }
+
+  .download-btn {
+    display: block;
+    text-align: center;
+    margin-top: 1rem;
+    padding: 0.75rem;
+    background: rgba(57,217,138,0.1);
+    border: 1px solid rgba(57,217,138,0.3);
+    color: var(--success);
+    border-radius: 8px;
+    text-decoration: none;
+    font-weight: 600;
+    font-size: 0.9rem;
+    transition: background 0.15s;
+    cursor: pointer;
+  }
+
+  .download-btn:hover {
+    background: rgba(57,217,138,0.18);
+  }
+
+  /* ─── Error ───────────────────────────────────────── */
+  .error-box {
+    display: none;
+    margin-top: 1rem;
+    padding: 0.75rem 1rem;
+    background: rgba(255,77,109,0.08);
+    border: 1px solid rgba(255,77,109,0.3);
+    border-radius: 8px;
+    font-size: 0.82rem;
+    font-family: var(--font-mono);
+    color: var(--accent2);
+    word-break: break-word;
+  }
+
+  /* ─── Trim controls ───────────────────────────────── */
+  .trim-row {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 0.75rem;
+  }
+
+  /* ─── Tooltip / info ─────────────────────────────── */
+  .tip {
+    font-size: 0.72rem;
+    color: var(--muted);
+    margin-top: 0.3rem;
+    font-family: var(--font-mono);
+    opacity: 0.7;
+  }
+
+  /* ─── Settings section divider ───────────────────── */
+  .section-label {
+    font-size: 0.68rem;
+    font-family: var(--font-mono);
+    color: var(--muted);
+    text-transform: uppercase;
+    letter-spacing: 0.1em;
+    margin: 1.2rem 0 0.6rem;
+    opacity: 0.6;
+  }
+
+  /* ─── Notification flash ─────────────────────────── */
+  .flash {
+    position: fixed;
+    bottom: 2rem;
+    left: 50%;
+    transform: translateX(-50%) translateY(20px);
+    background: var(--surface);
+    border: 1px solid var(--border);
+    padding: 0.6rem 1.2rem;
+    border-radius: 999px;
+    font-size: 0.85rem;
+    font-family: var(--font-mono);
+    opacity: 0;
+    pointer-events: none;
+    transition: opacity 0.2s, transform 0.2s;
+    z-index: 999;
+    white-space: nowrap;
+  }
+
+  .flash.show {
+    opacity: 1;
+    transform: translateX(-50%) translateY(0);
+  }
+
+  /* ─── Footer ─────────────────────────────────────── */
+  footer {
+    text-align: center;
+    padding: 2rem;
+    font-size: 0.75rem;
+    font-family: var(--font-mono);
+    color: var(--muted);
+    border-top: 1px solid var(--border);
+    opacity: 0.6;
+  }
+</style>
+</head>
+<body>
+
+<header>
+  <div class="logo">
+    <span class="dot"></span>
+    GIFsmith
+  </div>
+  <span class="logo-sub">video → gif · high quality</span>
+</header>
+
+<main>
+  <!-- ── Left: controls ── -->
+  <div>
+    <!-- Upload -->
+    <div class="panel" style="margin-bottom:1.5rem">
+      <div class="panel-title">01 / upload video</div>
+      <div class="drop-zone" id="drop-zone">
+        <input type="file" id="file-input" accept="video/*,.mkv,.webm,.flv,.ts">
+        <span class="drop-icon">🎬</span>
+        <div class="drop-label">Drop a video or click to browse</div>
+        <div class="drop-hint">mp4 · mov · mkv · webm · avi · flv · m4v</div>
+      </div>
+      <div class="file-info" id="file-info"></div>
+    </div>
+
+    <!-- Settings -->
+    <div class="panel">
+      <div class="panel-title">02 / settings</div>
+
+      <!-- Presets -->
+      <div class="section-label">quick presets</div>
+      <div class="preset-row">
+        <button class="preset-btn" id="btn-reddit" onclick="applyRedditConfig()">
+          <span class="emoji">🔴</span> Reddit Config
+        </button>
+        <button class="preset-btn" onclick="applyPreset('hq')" id="preset-hq">
+          <span class="emoji">✨</span> High Quality
+        </button>
+        <button class="preset-btn" onclick="applyPreset('tiny')" id="preset-tiny">
+          <span class="emoji">📦</span> Compact
+        </button>
+      </div>
+
+      <!-- FPS -->
+      <div class="field">
+        <div class="label-row">
+          <label>FRAMES PER SECOND (FPS)</label>
+          <span class="label-val" id="fps-val">15 fps</span>
+        </div>
+        <input type="range" id="fps" min="6" max="30" value="15" step="1"
+               oninput="document.getElementById('fps-val').textContent=this.value+' fps'">
+      </div>
+
+      <!-- Dimensions -->
+      <div class="section-label">output size</div>
+      <div class="row2">
+        <div class="field">
+          <label>WIDTH (px)</label>
+          <input type="number" id="width" value="480" min="100" max="1920" step="10">
+        </div>
+        <div class="field">
+          <label>HEIGHT (px) <span style="color:var(--accent);font-size:0.68rem">(-1 = auto)</span></label>
+          <input type="number" id="height" value="-1" min="-1" max="1920" step="10">
+        </div>
+      </div>
+      <div class="tip">Set height to -1 to preserve aspect ratio automatically.</div>
+
+      <!-- Trim -->
+      <div class="section-label">trim (optional)</div>
+      <div class="trim-row">
+        <div class="field">
+          <label>START TIME (sec)</label>
+          <input type="number" id="start-time" value="0" min="0" step="0.5" placeholder="0">
+        </div>
+        <div class="field">
+          <label>END TIME (sec)</label>
+          <input type="number" id="end-time" value="" min="0" step="0.5" placeholder="end">
+        </div>
+      </div>
+
+      <!-- Error -->
+      <div class="error-box" id="error-box"></div>
+
+      <!-- Progress -->
+      <div class="progress-wrap" id="progress-wrap">
+        <div class="progress-track">
+          <div class="progress-bar" id="progress-bar"></div>
+        </div>
+        <div class="progress-label" id="progress-label">Processing…</div>
+      </div>
+
+      <button id="btn-convert" onclick="startConvert()" disabled>
+        Convert to GIF →
+      </button>
+    </div>
+  </div>
+
+  <!-- ── Right: output ── -->
+  <div>
+    <!-- Placeholder -->
+    <div class="panel" id="placeholder-panel" style="text-align:center;padding:3rem 1.5rem;">
+      <div style="font-size:3rem;margin-bottom:1rem;opacity:0.3">🖼</div>
+      <div style="color:var(--muted);font-size:0.85rem;font-family:var(--font-mono)">
+        Your GIF preview will appear here
+      </div>
+    </div>
+
+    <!-- Output -->
+    <div class="panel" id="output-panel">
+      <div class="panel-title">03 / output</div>
+      <img class="gif-preview" id="gif-preview" src="" alt="GIF preview">
+      <div class="meta-row">
+        <span id="meta-dims" style="font-size:0.78rem;"></span>
+        <span class="size-badge" id="meta-size"></span>
+      </div>
+      <a class="download-btn" id="download-btn" href="#" download="converted.gif">
+        ⬇ Download GIF
+      </a>
+    </div>
+  </div>
+</main>
+
+<footer>GIFsmith · two-pass palettegen · lossless dithering · no uploads stored</footer>
+
+<div class="flash" id="flash"></div>
+
+<script>
+  let currentJobId = null;
+  let pollTimer = null;
+  let selectedFile = null;
+  let activePreset = null;
+
+  // ── File drop / select ──────────────────────────────
+  const dropZone = document.getElementById('drop-zone');
+  const fileInput = document.getElementById('file-input');
+
+  dropZone.addEventListener('dragover', e => { e.preventDefault(); dropZone.classList.add('drag-over'); });
+  dropZone.addEventListener('dragleave', () => dropZone.classList.remove('drag-over'));
+  dropZone.addEventListener('drop', e => {
+    e.preventDefault();
+    dropZone.classList.remove('drag-over');
+    const files = e.dataTransfer.files;
+    if (files.length) handleFile(files[0]);
+  });
+
+  fileInput.addEventListener('change', () => {
+    if (fileInput.files.length) handleFile(fileInput.files[0]);
+  });
+
+  function handleFile(file) {
+    selectedFile = file;
+    const mb = (file.size / 1024 / 1024).toFixed(1);
+    const info = document.getElementById('file-info');
+    info.style.display = 'block';
+    info.textContent = `✓ ${file.name}   ${mb} MB`;
+    document.getElementById('btn-convert').disabled = false;
+    clearOutput();
+    clearError();
+  }
+
+  // ── Presets ─────────────────────────────────────────
+  function clearPresets() {
+    ['btn-reddit','preset-hq','preset-tiny'].forEach(id => {
+      document.getElementById(id)?.classList.remove('active');
+    });
+  }
+
+  function applyRedditConfig() {
+    clearPresets();
+    document.getElementById('btn-reddit').classList.add('active');
+    activePreset = 'reddit';
+    // Vertical mobile portrait crop: 9:16 or 1080x1920 scaled to 480x854
+    document.getElementById('fps').value = 20;
+    document.getElementById('fps-val').textContent = '20 fps';
+    document.getElementById('width').value = -1;
+    document.getElementById('height').value = 480;
+    flash('🔴 Reddit Config applied — vertical 9:16 portrait, 20fps');
+  }
+
+  function applyPreset(name) {
+    clearPresets();
+    activePreset = name;
+    if (name === 'hq') {
+      document.getElementById('preset-hq').classList.add('active');
+      document.getElementById('fps').value = 24;
+      document.getElementById('fps-val').textContent = '24 fps';
+      document.getElementById('width').value = 720;
+      document.getElementById('height').value = -1;
+      flash('✨ High Quality preset applied');
+    } else if (name === 'tiny') {
+      document.getElementById('preset-tiny').classList.add('active');
+      document.getElementById('fps').value = 10;
+      document.getElementById('fps-val').textContent = '10 fps';
+      document.getElementById('width').value = 320;
+      document.getElementById('height').value = -1;
+      flash('📦 Compact preset applied');
+    }
+  }
+
+  // ── Convert ─────────────────────────────────────────
+  async function startConvert() {
+    if (!selectedFile) return;
+    clearError();
+    clearOutput();
+
+    const btn = document.getElementById('btn-convert');
+    btn.disabled = true;
+    showProgress(true);
+    setProgress(5, 'Uploading…');
+
+    const fd = new FormData();
+    fd.append('file', selectedFile);
+    fd.append('fps',        document.getElementById('fps').value);
+    fd.append('width',      document.getElementById('width').value);
+    fd.append('height',     document.getElementById('height').value);
+    fd.append('start_time', document.getElementById('start-time').value || '0');
+    const endTime = document.getElementById('end-time').value;
+    if (endTime) fd.append('end_time', endTime);
+
+    try {
+      const res = await fetch('/api/convert', { method: 'POST', body: fd });
+      const data = await res.json();
+      if (!res.ok || data.error) throw new Error(data.error || 'Upload failed');
+      currentJobId = data.job_id;
+      pollStatus();
+    } catch (err) {
+      showError(err.message);
+      btn.disabled = false;
+      showProgress(false);
+    }
+  }
+
+  function pollStatus() {
+    clearTimeout(pollTimer);
+    pollTimer = setTimeout(async () => {
+      try {
+        const res = await fetch(`/api/status/${currentJobId}`);
+        const job = await res.json();
+
+        if (job.error && job.status !== 'error') {
+          showError(job.error);
+          showProgress(false);
+          document.getElementById('btn-convert').disabled = false;
+          return;
+        }
+
+        setProgress(job.progress || 0, job.stage || 'Processing…');
+
+        if (job.status === 'done') {
+          showGif(currentJobId, job.file_size);
+        } else if (job.status === 'error') {
+          showError(job.error || 'Conversion failed');
+          showProgress(false);
+          document.getElementById('btn-convert').disabled = false;
+        } else {
+          pollStatus();
+        }
+      } catch (e) {
+        showError('Lost connection to server');
+        showProgress(false);
+        document.getElementById('btn-convert').disabled = false;
+      }
+    }, 600);
+  }
+
+  function showGif(jobId, fileSize) {
+    setProgress(100, 'Done!');
+    setTimeout(() => showProgress(false), 800);
+
+    const preview = document.getElementById('gif-preview');
+    const ts = Date.now();
+    preview.src = `/api/preview/${jobId}?t=${ts}`;
+
+    preview.onload = () => {
+      document.getElementById('placeholder-panel').style.display = 'none';
+      document.getElementById('output-panel').style.display = 'block';
+
+      const w = document.getElementById('width').value;
+      const h = document.getElementById('height').value;
+      document.getElementById('meta-dims').textContent =
+        `${w} × ${h === '-1' ? 'auto' : h} px · ${document.getElementById('fps').value} fps`;
+
+      const mb = fileSize ? (fileSize / 1024 / 1024).toFixed(2) + ' MB' : '';
+      document.getElementById('meta-size').textContent = mb;
+
+      const dlBtn = document.getElementById('download-btn');
+      dlBtn.href = `/api/download/${jobId}`;
+    };
+
+    document.getElementById('btn-convert').disabled = false;
+    flash('🎉 GIF ready!');
+  }
+
+  // ── Helpers ──────────────────────────────────────────
+  function showProgress(show) {
+    document.getElementById('progress-wrap').style.display = show ? 'block' : 'none';
+  }
+
+  function setProgress(pct, label) {
+    document.getElementById('progress-bar').style.width = pct + '%';
+    document.getElementById('progress-label').textContent = label;
+  }
+
+  function showError(msg) {
+    const el = document.getElementById('error-box');
+    el.style.display = 'block';
+    el.textContent = '⚠ ' + msg;
+  }
+
+  function clearError() {
+    const el = document.getElementById('error-box');
+    el.style.display = 'none';
+    el.textContent = '';
+  }
+
+  function clearOutput() {
+    document.getElementById('output-panel').style.display = 'none';
+    document.getElementById('placeholder-panel').style.display = 'block';
+  }
+
+  let flashTimer;
+  function flash(msg) {
+    const el = document.getElementById('flash');
+    el.textContent = msg;
+    el.classList.add('show');
+    clearTimeout(flashTimer);
+    flashTimer = setTimeout(() => el.classList.remove('show'), 2500);
+  }
+</script>
+
+</body>
+</html>

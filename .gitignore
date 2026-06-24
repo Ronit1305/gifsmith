@@ -1,0 +1,16 @@
+__pycache__/
+*.py[cod]
+*.egg-info/
+dist/
+build/
+.env
+.venv
+venv/
+*.log
+/tmp/
+*.gif
+*.mp4
+*.mov
+*.avi
+*.mkv
+.DS_Store
